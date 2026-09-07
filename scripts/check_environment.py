@@ -18,7 +18,7 @@ def check(config, level):
         if not ok:
             failures.append(label)
 
-    for name in ('numpy', 'Bio', 'gemmi', 'pandas'):
+    for name in ('numpy', 'Bio', 'gemmi', 'pandas', 'yaml'):
         record(f'controller module {name}', importlib.util.find_spec(name) is not None)
     for name in ('af3_multichain_core.py', 'af3_multichain_archive.py', 'af3_monitor_v16.py', 'af3_single_node_v18.py'):
         record(f'bundled {name}', (ROOT / 'tools/af3' / name).is_file())
