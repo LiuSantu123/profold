@@ -2,7 +2,8 @@ runs/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.tmp*/
+.tmp*
+*.log
 .venv/
 .env
 .env.*

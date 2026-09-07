@@ -22,7 +22,7 @@ class Level2PipelineTests(unittest.TestCase):
             _default_command({}, "esmfold2", {})
 
     def test_fake_run_does_not_execute_or_emit_esmfold(self) -> None:
-        fake_wrapper = V37 / ".tmp_fake_wrappers.py"
+        fake_wrapper = V37 / "tests/fixtures/fake_wrappers.py"
         self.assertTrue(fake_wrapper.is_file())
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
