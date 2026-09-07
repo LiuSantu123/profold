@@ -1,0 +1,18 @@
+{
+  "esmfold_bin": "/xcfhome/yzmeng/miniconda3/envs/zb/bin/esm-fold",
+  "esmfold_num_recycles": 4,
+  "esmfold_max_tokens_per_batch": 1024,
+  "af3_mode": "direct",
+  "af3_python": "/xcfhome/zpzeng/originrepo/alphafold3/alphafold3_env/bin/python",
+  "af3_script": "/xcfhome/zpzeng/originrepo/alphafold3/run_alphafold.py",
+  "af3_model_dir": "/xcfhome/pubdata/folding/alphafold3/models",
+  "af3_db_dir": "/xcfhome/pubdata/folding/alphafold3",
+  "boltz_bin": "/xcfhome/yhliu/002_software/001_conda/envs/boltz/bin/boltz",
+  "boltz_no_kernels": false,
+  "protenix_wrapper": "/xcfhome/yhliu/003_scripts/01_prediction/protenix_100_nomsa.sh",
+  "opendde_wrapper": "/xcfhome/yhliu/14_magpcr/z_zcodex/pipeline_scripts/00_latest/pipeline/v37/wrappers/run_opendde.sh",
+  "netsolp_wrapper": "/xcfhome/yhliu/14_magpcr/z_zcodex/pipeline_scripts/00_latest/pipeline/v37/wrappers/run_netsolp.sh",
+  "temberture_python": "/xcfhome/yhliu/002_software/001_conda/envs/temberture/bin/python",
+  "temberture_script": "/xcfhome/yhliu/14_magpcr/06_zqq_5cpm/7_tm_pre/1_temberture/run_temberture_v7.py",
+  "level3_multichain_mode": "error"
+}

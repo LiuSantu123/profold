@@ -1,0 +1,3 @@
+design_id	sequence	chain_ids	cid_apo_json_path	cid_holo_json_path
+cid_demo_001	MKKLAA:GGAVVL:VVLKAA	A,B,C	apo.json	holo.json
+cid_demo_002	MKKLAG:GGAVVA:VVLKAG	A,B,C	apo.json	holo.json

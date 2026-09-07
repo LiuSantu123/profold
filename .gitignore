@@ -1,0 +1,15 @@
+runs/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.tmp*/
+.venv/
+.env
+.env.*
+*.local.json
+*.local.sh
+selection.json
+dist/
+*.egg-info/
+.DS_Store
+.smoke*

@@ -1,0 +1,23 @@
+{
+  "af3_mode": "cid",
+  "esmfold_bin": "${CONDA_ROOT}/envs/esmfold/bin/esm-fold",
+  "esmfold_num_recycles": 4,
+  "esmfold_max_tokens_per_batch": 1024,
+  "af3_python": "${CONDA_ROOT}/envs/af3/bin/python",
+  "af3_script": "${SOFTWARE_ROOT}/alphafold3/run_alphafold.py",
+  "af3_model_dir": "${DATA_ROOT}/alphafold3/models",
+  "af3_db_dir": "${DATA_ROOT}/alphafold3",
+  "cid_wrapper": "${V37_ROOT}/tools/af3/af3_single_node_v18.py",
+  "cid_monitor": "${V37_ROOT}/tools/af3/af3_monitor_v16.py",
+  "cid_pae_cutoff": 15.0,
+  "cid_keep_source": false,
+  "boltz_bin": "${CONDA_ROOT}/envs/boltz/bin/boltz",
+  "boltz_no_kernels": false,
+  "level3_multichain_mode": "error",
+  "commands": {
+    "protenix": ["env", "PROTENIX_PYTHON=${CONDA_ROOT}/envs/protenix/bin/python", "PROTENIX_SOURCE=${SOFTWARE_ROOT}/Protenix", "bash", "${V37_ROOT}/wrappers/run_protenix.sh", "{protenix_input}", "{protenix_outdir}"],
+    "opendde": ["env", "CONDA_BASE=${CONDA_ROOT}", "OPENDDE_ENV=opendde", "OPENDDE_ROOT_DIR=${DATA_ROOT}/opendde", "bash", "${V37_ROOT}/wrappers/opendde_predict.sh", "-i", "{opendde_input}", "-o", "{opendde_outdir}"],
+    "netsolp": ["env", "NETSOLP_PYTHON=${CONDA_ROOT}/envs/netsolp/bin/python", "NETSOLP_SCRIPT=${SOFTWARE_ROOT}/NetSolP/PredictionServer/predict_v2.py", "NETSOLP_EXTRACT_SCRIPT=${V37_ROOT}/wrappers/extract_netsolp.py", "bash", "${V37_ROOT}/wrappers/run_netsolp.sh", "{level3_fasta}", "{netsolp_raw}", "{netsolp_csv}"],
+    "temberture": ["${CONDA_ROOT}/envs/temberture/bin/python", "${V37_ROOT}/wrappers/run_temberture_v7.py", "{level3_fasta}", "--output", "{temberture_csv}", "--tm_models", "${DATA_ROOT}/temberture/temBERTure_TM/replica1", "${DATA_ROOT}/temberture/temBERTure_TM/replica2", "${DATA_ROOT}/temberture/temBERTure_TM/replica3", "--cls_model", "${DATA_ROOT}/temberture/temBERTure_CLS"]
+  }
+}

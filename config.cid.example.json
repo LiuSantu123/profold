@@ -1,0 +1,12 @@
+{
+  "af3_mode": "cid",
+  "esmfold_bin": "/xcfhome/yzmeng/miniconda3/envs/zb/bin/esm-fold",
+  "esmfold_num_recycles": 4,
+  "esmfold_max_tokens_per_batch": 1024,
+  "af3_python": "/xcfhome/zpzeng/originrepo/alphafold3/alphafold3_env/bin/python",
+  "af3_script": "/xcfhome/zpzeng/originrepo/alphafold3/run_alphafold.py",
+  "af3_model_dir": "/xcfhome/pubdata/folding/alphafold3/models",
+  "af3_db_dir": "/xcfhome/pubdata/folding/alphafold3",
+  "cid_pae_cutoff": 15.0,
+  "cid_keep_source": false
+}

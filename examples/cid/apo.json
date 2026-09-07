@@ -1,0 +1,11 @@
+{
+  "name": "cid_apo_template",
+  "dialect": "alphafold3",
+  "version": 1,
+  "modelSeeds": [1],
+  "sequences": [
+    {"protein": {"id": "A", "sequence": "MKKLAA", "unpairedMsa": "", "pairedMsa": "", "templates": []}},
+    {"protein": {"id": "B", "sequence": "GGAVVL", "unpairedMsa": "", "pairedMsa": "", "templates": []}},
+    {"protein": {"id": "C", "sequence": "VVLKAA", "unpairedMsa": "", "pairedMsa": "", "templates": []}}
+  ]
+}

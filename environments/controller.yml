@@ -1,0 +1,10 @@
+name: v37
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy>=1.24,<3
+  - biopython>=1.81,<2
+  - gemmi>=0.6,<1
+  - pandas>=2,<3
+  - pip
