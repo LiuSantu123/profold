@@ -8,30 +8,26 @@
 
 ```text
 miniconda3/envs/
-  v37/           # 控制器、监控、测试
+  profold/       # 控制器、监控、测试
   esmfold/       # 原版 esm-fold CLI
   af3/           # AlphaFold3 + JAX
   protenix/      # Protenix + PyTorch
   boltz/         # Boltz-2
   opendde/       # OpenDDE
-  netsolp/       # NetSolP
-  temberture/    # TemBERTure
 software/
-  alphafold3/ Protenix/ NetSolP/
+  alphafold3/ Protenix/
 data/
-  alphafold3/models/ opendde/ temberture/
-protein-screening-v37/   # 本仓库
+  alphafold3/models/ opendde/
+profold/                 # 本仓库
 ```
 
-| 环境 | 上游安装来源 | v37 调用契约与限制 |
+| 环境 | 上游安装来源 | ProFold 调用契约与限制 |
 | --- | --- | --- |
 | esmfold | [ESM](https://github.com/facebookresearch/esm) | 需要 `esm-fold -i FASTA -o PDB_DIR`；仅安装 fair-esm 不保证提供此 CLI，需按现有安装验证或通过 `commands.esmfold` 适配 |
 | af3 | [AlphaFold3](https://github.com/google-deepmind/alphafold3) | 配置 Python、run_alphafold.py、数据库和权重；本地验证过 v3.0.4 + 自定义 patch，权重按上游许可自行获取 |
 | protenix | [Protenix](https://github.com/bytedance/Protenix) | 保留原 `protenix_100.py` 及 `protenix_base_20250630_v1.0.0` 默认模型；不是已验证的 Protenix-v2 adapter。升级需匹配 `PROTENIX_SCRIPT`/模型名或 `commands.protenix` 并实测输出 |
 | boltz | [Boltz](https://github.com/jwohlwend/boltz) | `boltz predict --write_full_pae --write_full_pde`；GPU kernel 由本机安装决定 |
 | opendde | [OpenDDE](https://github.com/DeepPrinciple/OpenDDE) | 自带 `opendde_predict.sh` 与 FASTA 转换器，环境需提供 `opendde pred`；配置数据目录 |
-| netsolp | [NetSolP](https://github.com/tvinet/NetSolP) | 需要兼容的 `PredictionServer/predict_v2.py`；仅附结果提取器，不含模型代码及权重 |
-| temberture | [TemBERTure](https://github.com/ibmm-unibe-ch/TemBERTure) | 需要 `temBERTure` 包、TM 三个 replica 与 CLS adapter；路径通过参数传入 |
 | esmfold2 | 预留 | 当前 Level2 未接入，不提供假定可执行的环境 |
 
 ## 配置和检查
@@ -40,7 +36,7 @@ protein-screening-v37/   # 本仓库
 
 ```bash
 conda env create -f environments/controller.yml
-conda activate v37
+conda activate profold
 python scripts/configure.py \
   --conda-root /opt/miniconda3 \
   --software-root /opt/software \

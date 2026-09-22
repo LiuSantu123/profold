@@ -33,7 +33,6 @@ PATH_FIELDS = {
     "protenix_structure_path",
     "boltz2_structure_path",
     "opendde_structure_path",
-    "solubility_structure_path",
 }
 CORE_FIELDS = [
     "design_id",

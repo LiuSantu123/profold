@@ -10,9 +10,5 @@
   "boltz_bin": "/xcfhome/yhliu/002_software/001_conda/envs/boltz/bin/boltz",
   "boltz_no_kernels": false,
   "protenix_wrapper": "/xcfhome/yhliu/003_scripts/01_prediction/protenix_100_nomsa.sh",
-  "opendde_wrapper": "/xcfhome/yhliu/14_magpcr/z_zcodex/pipeline_scripts/00_latest/pipeline/v37/wrappers/run_opendde.sh",
-  "netsolp_wrapper": "/xcfhome/yhliu/14_magpcr/z_zcodex/pipeline_scripts/00_latest/pipeline/v37/wrappers/run_netsolp.sh",
-  "temberture_python": "/xcfhome/yhliu/002_software/001_conda/envs/temberture/bin/python",
-  "temberture_script": "/xcfhome/yhliu/14_magpcr/06_zqq_5cpm/7_tm_pre/1_temberture/run_temberture_v7.py",
-  "level3_multichain_mode": "error"
+  "opendde_wrapper": "/xcfhome/yhliu/14_magpcr/z_zcodex/pipeline_scripts/00_latest/pipeline/profold/wrappers/run_opendde.sh"
 }

@@ -10,4 +10,4 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
-      - run: find level1 level2 level3 wrappers structure_align scripts -name '*.sh' -exec bash -n {} \;
+      - run: find level1 level2 wrappers structure_align scripts -name '*.sh' -exec bash -n {} \;

@@ -29,12 +29,10 @@ def check(config, level):
         record(str(p), ok)
 
     commands = config.get('commands', {})
-    models = {'level1': ('esmfold', 'af3'), 'level2': ('protenix', 'boltz2', 'opendde'),
-              'level3': ('netsolp', 'temberture')}[level]
+    models = {'level1': ('esmfold', 'af3'), 'level2': ('protenix', 'boltz2', 'opendde')}[level]
     keys = {'esmfold': ('esmfold_bin',), 'af3': ('af3_python', 'af3_script', 'af3_model_dir', 'af3_db_dir'),
             'boltz2': ('boltz_bin',), 'protenix': ('protenix_wrapper',),
-            'opendde': ('opendde_wrapper',), 'netsolp': ('netsolp_wrapper',),
-            'temberture': ('temberture_python', 'temberture_script')}
+            'opendde': ('opendde_wrapper',)}
     for model in models:
         cmd = commands.get(model, commands.get('boltz') if model == 'boltz2' else None)
         if cmd:
@@ -61,6 +59,6 @@ def check(config, level):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, required=True)
-    parser.add_argument('--level', choices=['level1', 'level2', 'level3'], required=True)
+    parser.add_argument('--level', choices=['level1', 'level2'], required=True)
     args = parser.parse_args()
     sys.exit(check(json.loads(args.config.read_text()), args.level))

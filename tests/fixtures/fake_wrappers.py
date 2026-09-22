@@ -97,28 +97,6 @@ def main() -> int:
         write_structure(outdir / f"{design_id}.cif")
         return 0
 
-    if kind == "netsolp":
-        fasta, raw, extracted = map(Path, args[:3])
-        ids = ids_from_fasta(fasta)
-        raw.parent.mkdir(parents=True, exist_ok=True)
-        with extracted.open("w", newline="") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(["sid", "predicted_solubility", "predicted_usability"])
-            for design_id in ids:
-                writer.writerow([design_id, "0.7", "0.8"])
-        raw.write_text("fake raw\n")
-        return 0
-
-    if kind == "temberture":
-        fasta, output = Path(args[0]), value("--output")
-        output.parent.mkdir(parents=True, exist_ok=True)
-        with output.open("w", newline="") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(["sid", "tem_TM", "tem_SC"])
-            for design_id in ids_from_fasta(fasta):
-                writer.writerow([design_id, "62.5", "0.9"])
-        return 0
-
     raise SystemExit(f"unknown kind: {kind}")
 
 

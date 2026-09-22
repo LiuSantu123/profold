@@ -13,11 +13,8 @@
   "cid_keep_source": false,
   "boltz_bin": "${CONDA_ROOT}/envs/boltz/bin/boltz",
   "boltz_no_kernels": false,
-  "level3_multichain_mode": "error",
   "commands": {
     "protenix": ["env", "PROTENIX_PYTHON=${CONDA_ROOT}/envs/protenix/bin/python", "PROTENIX_SOURCE=${SOFTWARE_ROOT}/Protenix", "bash", "${V37_ROOT}/wrappers/run_protenix.sh", "{protenix_input}", "{protenix_outdir}"],
-    "opendde": ["env", "CONDA_BASE=${CONDA_ROOT}", "OPENDDE_ENV=opendde", "OPENDDE_ROOT_DIR=${DATA_ROOT}/opendde", "bash", "${V37_ROOT}/wrappers/opendde_predict.sh", "-i", "{opendde_input}", "-o", "{opendde_outdir}"],
-    "netsolp": ["env", "NETSOLP_PYTHON=${CONDA_ROOT}/envs/netsolp/bin/python", "NETSOLP_SCRIPT=${SOFTWARE_ROOT}/NetSolP/PredictionServer/predict_v2.py", "NETSOLP_EXTRACT_SCRIPT=${V37_ROOT}/wrappers/extract_netsolp.py", "bash", "${V37_ROOT}/wrappers/run_netsolp.sh", "{level3_fasta}", "{netsolp_raw}", "{netsolp_csv}"],
-    "temberture": ["${CONDA_ROOT}/envs/temberture/bin/python", "${V37_ROOT}/wrappers/run_temberture_v7.py", "{level3_fasta}", "--output", "{temberture_csv}", "--tm_models", "${DATA_ROOT}/temberture/temBERTure_TM/replica1", "${DATA_ROOT}/temberture/temBERTure_TM/replica2", "${DATA_ROOT}/temberture/temBERTure_TM/replica3", "--cls_model", "${DATA_ROOT}/temberture/temBERTure_CLS"]
+    "opendde": ["env", "CONDA_BASE=${CONDA_ROOT}", "OPENDDE_ENV=opendde", "OPENDDE_ROOT_DIR=${DATA_ROOT}/opendde", "bash", "${V37_ROOT}/wrappers/opendde_predict.sh", "-i", "{opendde_input}", "-o", "{opendde_outdir}"]
   }
 }
