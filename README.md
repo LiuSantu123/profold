@@ -8,6 +8,8 @@ logs, and resumable Slurm runs.
 This repository does not perform solubility, expression, or thermal-stability
 prediction. The former Level 3 sequence-screening module has been removed.
 
+**详细中文说明：** [ProFold 使用与输出说明](docs/PROFOLD_GUIDE.md)
+
 ## Pipeline
 
 | Stage | Purpose | Models |
