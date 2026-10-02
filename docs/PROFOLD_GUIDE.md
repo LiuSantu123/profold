@@ -20,13 +20,16 @@ ProFold 当前只负责结构预测、结构质量评估和结果整理，不负
 12. [文件整理和清理](#文件整理和清理)
 13. [常见问题](#常见问题)
 14. [运行建议](#运行建议)
+15. [首次使用配置](#首次使用配置)
+
+> **当前验证状态（v38.1）**：Level 1 的 ESMFold2 和 AF3 已在 GPU1 上完成真实调试；Level 2 的批处理、指标聚合、USalign、文件分类和 full-data 归档已有真实测试。跨 Level 1→Level 2→Rosetta→最终交付的完整端到端测试尚未完成，正式批量运行前请先用少量设计验证。
 
 ## 流水线概览
 
 | 阶段 | 主要用途 | 默认模型 | 默认分片大小 |
 | --- | --- | --- | ---: |
 | Level 1 | 快速 foldback、初步结构和复合物置信度筛选 | ESMFold + AlphaFold 3 | 32 designs/shard |
-| Level 2 | 对人工选择的子集进行多模型结构复核 | Protenix、Boltz-2、OpenDDE | 8 designs/shard |
+| Level 2 | 对人工选择的子集进行多模型结构复核 | Protenix、Boltz-2、OpenDDE、ESMFold2 | 8 designs/shard |
 
 两个阶段通过 TSV manifest 传递 design ID、序列、输入文件路径和结果路径。Level 2 不会隐式读取某个 Level 1 目录；通常由用户使用 `common/select_manifest.py` 从 Level 1 结果中选择设计，然后生成新的 Level 2 manifest。
 
@@ -44,7 +47,7 @@ metrics/level1.csv + result_manifest.tsv
 人工选择或按指标选择
         |
         v
-Level 2: Protenix + Boltz-2 + OpenDDE
+Level 2: Protenix + Boltz-2 + OpenDDE + ESMFold2
         |
         v
 metrics/level2.csv + result_manifest.tsv
@@ -55,6 +58,23 @@ metrics/level2.csv + result_manifest.tsv
 预测运行状态不等于科学筛选通过。`success` 只表示必需输出存在并且能够解析；是否进入下一阶段仍需要根据 pLDDT、pTM、ipTM、PAE/PDE、界面指标、结构一致性和人工规则判断。
 
 ## 安装和环境
+
+## 首次使用配置
+
+复制配置模板并按本机实际安装位置修改：
+
+```bash
+cp config.example.json config.local.json
+```
+
+至少检查 `af3_python`、`af3_script`、`af3_model_dir`、`af3_db_dir`、`esmfold2_wrapper`、`protenix_wrapper`、`boltz_bin`、`opendde_wrapper`、`usalign_path`、`rosetta_filter_script` 和 `rosetta_interface_analyzer`。这些配置项分别指向模型环境、权重/数据库、批处理 wrapper、USalign 和 Rosetta 可执行文件。
+
+配置后执行：
+
+```bash
+python scripts/check_environment.py --config config.local.json --level level1
+python scripts/check_environment.py --config config.local.json --level level2
+```
 
 ### 获取代码
 
@@ -186,10 +206,35 @@ python scripts/check_environment.py \
       "{opendde_input}",
       "-o",
       "{opendde_outdir}"
+    ],
+    "esmfold2": [
+      "env",
+      "ESMFOLD2_BIN=/opt/conda/envs/esmfold2/bin/esmfold2",
+      "bash",
+      "/opt/software/profold/wrappers/run_esmfold2.sh",
+      "-i",
+      "{esmfold2_input}",
+      "-o",
+      "{esmfold2_outdir}"
     ]
   }
 }
 ```
+
+将 `level2_mode` 改为 `"cid"` 后，Level 2 会对每个 design、每个模型
+分别运行 `apo` 和 `holo` 两个状态，计算量约为单状态的两倍。状态输入可
+通过以下 manifest 列指定：
+
+```text
+apo_protenix_input_path / holo_protenix_input_path
+apo_boltz_input_path    / holo_boltz_input_path
+apo_opendde_input_path  / holo_opendde_input_path
+apo_esmfold2_input_path / holo_esmfold2_input_path
+```
+
+如果缺少状态专用输入，worker 会回退到普通模型输入；对于蛋白-小分子
+CID，建议显式提供 apo/holo 输入，避免两个状态实际上使用相同的 ligand
+定义。命令模板可使用 `{state}` 和 `{cid_state}` 占位符。
 
 命令模板中的占位符由 worker 在运行时展开。常用占位符包括：
 
@@ -206,6 +251,9 @@ python scripts/check_environment.py \
 | `{boltz_outdir}` | Boltz 输出目录 |
 | `{opendde_input}` | OpenDDE JSON 或转换输入 |
 | `{opendde_outdir}` | OpenDDE 输出目录 |
+| `{esmfold2_input}` | ESMFold2 FASTA |
+| `{esmfold2_outdir}` | ESMFold2 输出目录 |
+| `{state}` / `{cid_state}` | 当前状态：`apo` 或 `holo` |
 
 配置中的命令使用参数数组时，不需要自行处理 shell quoting。字符串形式会经过 `shlex.split`，路径包含空格时优先使用数组形式。
 
@@ -415,11 +463,37 @@ python level2/run_level2.py \
   --shard-index 0
 ```
 
-Level 2 对每个 design 依次处理：
+如果该 run 的 `config.json` 没有设置 `level2_mode: "cid"`，也可以在单机
+worker 中显式启用：
+
+```bash
+python level2/run_level2.py \
+  --run-dir runs/level2 \
+  --shard-index 0 \
+  --cid
+```
+
+Slurm 提交使用：
+
+```bash
+bash level2/submit_level2.sh \
+  --manifest level1_selected.tsv \
+  --outdir runs/level2_cid \
+  --config config.local.json \
+  --cid
+```
+
+Level 2 按 shard 批处理：每个模型对该 shard 的输入目录只启动一次，避免
+每个 design 重复加载模型；预测完成后再按 design ID 回填结果：
 
 ```text
-Protenix -> Boltz-2 -> OpenDDE
+Protenix -> Boltz-2 -> OpenDDE -> ESMFold2
 ```
+
+ESMFold2 本地部署使用 `wrappers/run_esmfold2_local_batch.sh`。它显式加载
+`ESMFOLD2_MODEL_DIR` 和 `ESMC_MODEL_DIR`，并设置 Hugging Face offline 模式，
+避免本地已有 ESMC-6B 分片时再次联网下载。默认路径适用于 `/nvme_af3`；其他
+机器应在提交配置中覆盖这两个环境变量。
 
 每个模型有独立的输入目录、输出目录、日志和解析状态。某个模型失败不会阻止其他模型运行；worker 会把该模型记为 `failed` 或 `missing`，同时保留其他模型结果。
 
@@ -434,7 +508,21 @@ python level2/aggregate_level2.py --run-dir runs/level2
 ```text
 runs/level2/results/result_manifest.tsv
 runs/level2/metrics/level2.csv
+runs/level2/metrics/canonical_metrics.csv
+runs/level2/metrics/stage_timings.tsv
 runs/level2/status/status.tsv
+runs/level2/summary.json
+runs/level2/ranking.csv
+```
+
+聚合后可生成交付目录。该目录只复制总表、结构和模型置信度/full data；
+使用 `--archive` 时，原始输入、日志和中间目录会先移入可逆 `_archive`：
+
+```bash
+python level2/compact_level2.py \
+  --run-dir runs/level2 \
+  --out-dir runs/level2/review \
+  --archive
 ```
 
 ### Level 2 当前监控边界
@@ -445,7 +533,29 @@ runs/level2/status/status.tsv
 tools/monitors/multimodel_monitor_v1.py
 ```
 
-它可以扫描 Protenix、Boltz-2 和 OpenDDE 的输出并计算更完整的 ipTM、ipAE、ipSAE、链级指标和 Boltz affinity。但当前 `level2/run_level2.py` 默认不自动启动该脚本，而是由 `common/model_parsers.py` 做轻量解析：
+它可以扫描 Protenix、Boltz-2 和 OpenDDE 的输出并计算更完整的 ipTM、ipAE、ipSAE、链级指标和 Boltz affinity。ESMFold2 使用独立的 `tools/monitors/esmfold2_monitor.py`，从 PDB B-factor 提取 pLDDT。Level 2 worker 默认由 `common/model_parsers.py` 做轻量解析，并在 shard 完成后自动写出：
+
+```text
+runs/level2/metrics/esmfold2_monitor_shard_00000.csv
+```
+
+执行 `aggregate_level2.py` 时会扫描全部 shard，并生成最终的：
+
+```text
+runs/level2/metrics/esmfold2_monitor.csv
+```
+
+CID 模式另外生成：
+
+```text
+runs/level2/metrics/level2_cid_delta.csv
+runs/level2/metrics/esmfold2_monitor_apo.csv
+runs/level2/metrics/esmfold2_monitor_holo.csv
+```
+
+`level2_cid_delta.csv` 保存 holo-apo 差值。差值只表示预测指标变化，不能
+单独解释为实验结合效应；ESMFold2 不读取 ligand，因此其 apo/holo 运行应
+视为单体 baseline 的重复计算。
 
 - 检查 summary 文件是否存在。
 - 检查结构文件是否存在。
@@ -459,6 +569,10 @@ python tools/monitors/multimodel_monitor_v1.py \
   --software protenix \
   --scan runs/level2/artifacts \
   -o runs/level2/metrics/protenix_monitor.csv
+
+python tools/monitors/esmfold2_monitor.py \
+  --scan runs/level2/artifacts \
+  -o runs/level2/metrics/esmfold2_monitor.csv
 ```
 
 不同软件的参数和输出布局以脚本的 `--help` 及实际模型版本为准。正式批处理前应先用一个 design 验证 scan 根目录、文件名和链顺序。
@@ -630,7 +744,9 @@ affinity_*.json
 *.cif
 ```
 
-这些是模型原始输出，不等于最终交付格式。当前 Level 2 不会自动把所有模型结果扁平化到统一的 `structures/` 和 `confidences/` 目录，也不会自动删除所有非 best sample。
+这些是模型原始输出，不等于最终交付格式。closeout 会从 result manifest 中选择
+top-ranked 结构和对应的 confidence/full-data 文件，扁平化到统一的
+`structures/` 和 `confidences/` 目录；其他原始输出会先移动到可逆的 `_archive/`。
 
 ## 监控、状态和错误
 
@@ -687,18 +803,19 @@ python level1/run_level1.py --run-dir runs/level1 --shard-index 0 --no-resume
 - Level 1 CID wrapper 的 AF3 归档和清理。
 - 统一的 metrics/status/result manifest 聚合。
 
-### 当前不会自动完成的整理
+### closeout 自动完成的整理
 
-Level 2 当前不会自动完成以下交付整理：
+Level 2 aggregate/closeout 会自动完成以下交付整理：
 
-- 每个 design 选择 top-ranked best structure。
+- 每个 design 和模型选择 top-ranked best structure。
 - 将 best 结构复制到统一 `structures/`。
 - 将 confidence/full data 复制到统一 `confidences/`。
-- 生成统一的 `summary.json`、`ranking.csv` 和 `index.json`。
-- 归档后删除非 best diffusion sample。
-- 删除 model cache、processed、MSA 或其他中间目录。
+- 生成 `summary.json`、`ranking.csv` 和 `summary.tsv`。
+- 将非 best diffusion sample 和原始模型目录移动到可逆 `_archive/`。
+- 在归档前检查 summary 中的路径和交付文件是否真实存在。
 
-因此不要直接把 `artifacts/` 目录当作最终交付目录。对于正式结果，应先完成指标提取和汇总，再按照以下原则整理：
+不要直接把 `artifacts/` 目录当作最终交付目录。正式结果应使用 closeout 生成的
+review 目录：
 
 ```text
 run/
@@ -708,7 +825,6 @@ run/
 │   └── <design>_confidences.json 或 .npz
 ├── summary.json
 ├── ranking.csv
-├── index.json
 └── _archive/
 ```
 
@@ -828,8 +944,8 @@ python -m unittest discover -s tests -v
 当前 release：
 
 ```text
-ProFold 0.0.37
-Git tag: v0.0.37
+ProFold 0.0.38.1
+Git tag: v0.0.38.1
 ```
 
 模型权重、数据库、机器配置和预测结果不属于源码 release。正式报告中应额外记录模型源码 commit、权重版本、CUDA/驱动、输入 fingerprint 和实际命令行。
