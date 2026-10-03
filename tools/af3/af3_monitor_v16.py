@@ -25,8 +25,15 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
-from Bio.PDB import MMCIFParser, PDBParser, PDBIO, Select
-from Bio.PDB.Polypeptide import is_aa
+try:
+    from Bio.PDB import MMCIFParser, PDBParser, PDBIO, Select
+    from Bio.PDB.Polypeptide import is_aa
+except ImportError:  # Biopython is only needed for optional chain alignment.
+    MMCIFParser = PDBParser = PDBIO = None
+    class Select:  # type: ignore[no-redef]
+        pass
+    def is_aa(_residue):
+        return False
 from af3_multichain_archive import process_task, load_bundle, cleanup_bundle
 
 # ======================== 配置 ========================
@@ -182,6 +189,8 @@ class ChainSelect(Select):
         return chain.id == self.chain_id
 
 def extract_chain_to_pdb(cif_path, chain_id, temp_dir):
+    if MMCIFParser is None or PDBIO is None:
+        return None
     try:
         parser = MMCIFParser(QUIET=True)
         struct = parser.get_structure('x', str(cif_path))

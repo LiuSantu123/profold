@@ -22,7 +22,7 @@ ProFold 当前只负责结构预测、结构质量评估和结果整理，不负
 14. [运行建议](#运行建议)
 15. [首次使用配置](#首次使用配置)
 
-> **当前验证状态（v38.1）**：Level 1 的 ESMFold2 和 AF3 已在 GPU1 上完成真实调试；Level 2 的批处理、指标聚合、USalign、文件分类和 full-data 归档已有真实测试。跨 Level 1→Level 2→Rosetta→最终交付的完整端到端测试尚未完成，正式批量运行前请先用少量设计验证。
+> **当前验证状态（v38.2，2026-10-03）**：f101 RTX 3090 已完成四类 Level 2 GPU 验收：单体、真实 `CCD_STR` 小分子、A/B PPI、CID apo/holo；Protenix、Boltz-2、OpenDDE 均成功，日志返回码为 0，USalign 也已实测。跨 Level 1→Level 2→Rosetta→最终交付的生产闭环尚未完成：Rosetta 统一 JSON filter wrapper、`selected.tsv`/`selection.json`、统一 cleanup/closeout 和实时 progress/status 仍待实现。因此当前结论是“模型级 GPU E2E 已通过，生产交付级 E2E 尚未收口”。
 
 ## 流水线概览
 
@@ -514,6 +514,20 @@ runs/level2/status/status.tsv
 runs/level2/summary.json
 runs/level2/ranking.csv
 ```
+
+### Level 2 报告与结构可视化
+
+聚合后可生成 BoltzGen 风格 PDF、统计图和 Top-N 结构面板：
+
+```bash
+python scripts/profold.py report --run-dir runs/level2 --top-n 10
+```
+
+输出位于 `runs/level2/report/`，包括 `profold_level2_report.pdf`、
+`ranking.tsv`、`metrics_long.tsv`、指标分布图、散点图、设计×模型热图、
+模型均值柱形图和 `structures/` 下的 VMD/Tachyon 结构面板。排名使用可用的
+pLDDT、pTM、ipTM；单体的 ipTM=0 按未定义处理。仅生成统计报告时加
+`--no-structures`；可用 `--renderer` 替换默认结构渲染脚本。
 
 聚合后可生成交付目录。该目录只复制总表、结构和模型置信度/full data；
 使用 `--archive` 时，原始输入、日志和中间目录会先移入可逆 `_archive`：

@@ -292,6 +292,22 @@ def build_protenix_json(row: Mapping[str, object], destination: str | Path) -> s
     """Build the no-MSA Protenix JSON accepted by the local wrapper."""
 
     records = protein_records(row)
+    ligand = str(row.get("ligand", "")).strip()
+
+    def ligand_entries() -> list[dict[str, Any]]:
+        if not ligand:
+            return []
+        entries: list[dict[str, Any]] = []
+        for token in ligand.replace(";", ",").split(","):
+            token = token.strip()
+            if not token:
+                continue
+            if token.lower().startswith("smiles:"):
+                entries.append({"ligand": {"ligand": token.split(":", 1)[1], "count": 1}})
+            else:
+                code = token if token.upper().startswith("CCD_") else f"CCD_{token.upper()}"
+                entries.append({"ligand": {"ligand": code, "count": 1}})
+        return entries
 
     def builder(output: Path) -> None:
         payload = [
@@ -306,7 +322,7 @@ def build_protenix_json(row: Mapping[str, object], destination: str | Path) -> s
                         }
                     }
                     for chain_id, sequence in records
-                ],
+                ] + ligand_entries(),
             }
         ]
         output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -318,6 +334,7 @@ def build_boltz_yaml(row: Mapping[str, object], destination: str | Path) -> str:
     """Build a minimal Boltz no-MSA YAML, unless an explicit input is given."""
 
     records = protein_records(row)
+    ligand = str(row.get("ligand", "")).strip()
 
     def builder(output: Path) -> None:
         lines = ["version: 1", "sequences:"]
@@ -330,6 +347,14 @@ def build_boltz_yaml(row: Mapping[str, object], destination: str | Path) -> str:
                     "      msa: empty",
                 ]
             )
+        for index, token in enumerate(
+            item.strip() for item in ligand.replace(";", ",").split(",") if item.strip()
+        ):
+            if token.lower().startswith("smiles:"):
+                lines.extend(["  - ligand:", f"      id: [L{index + 1}]", f"      smiles: {token.split(':', 1)[1]}"])
+            else:
+                code = token[4:] if token.upper().startswith("CCD_") else token.upper()
+                lines.extend(["  - ligand:", f"      id: [L{index + 1}]", f"      ccd: [{code}]"])
         output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     return _copy_or_build_model_input(row, destination, "boltz_input_path", builder, "boltz2")
@@ -339,10 +364,30 @@ def build_opendde_fasta(row: Mapping[str, object], destination: str | Path) -> s
     """Build an OpenDDE FASTA (colon-separated chains), unless supplied."""
 
     records = protein_records(row)
+    ligand = str(row.get("ligand", "")).strip()
 
     def builder(output: Path) -> None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if not ligand:
+            output.write_text(
+                f">{row['design_id']}\n{':'.join(sequence for _chain, sequence in records)}\n",
+                encoding="utf-8",
+            )
+            return
+        sequences: list[dict[str, Any]] = [
+            {"proteinChain": {"sequence": sequence, "count": 1, "id": [chain_id]}}
+            for chain_id, sequence in records
+        ]
+        for token in ligand.replace(";", ",").split(","):
+            token = token.strip()
+            if not token:
+                continue
+            value = token.split(":", 1)[1] if token.lower().startswith("smiles:") else (
+                token if token.upper().startswith("CCD_") else f"CCD_{token.upper()}"
+            )
+            sequences.append({"ligand": {"ligand": value, "count": 1}})
         output.write_text(
-            f">{row['design_id']}\n{':'.join(sequence for _chain, sequence in records)}\n",
+            json.dumps([{"name": str(row["design_id"]), "sequences": sequences}], indent=2) + "\n",
             encoding="utf-8",
         )
 

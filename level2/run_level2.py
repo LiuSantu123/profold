@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -74,8 +75,27 @@ def _build_input(row: dict[str, str], model: str, input_dir: Path) -> str:
     if model == "boltz2":
         return build_boltz_yaml(row, input_dir / f"{design_id}.yaml")
     if model == "opendde":
-        return build_opendde_fasta(row, input_dir / f"{design_id}.fasta")
+        suffix = "json" if str(row.get("ligand", "")).strip() else "fasta"
+        return build_opendde_fasta(row, input_dir / f"{design_id}.{suffix}")
     raise ValueError(model)
+
+
+def _state_row(row: dict[str, str], state: str | None) -> dict[str, str]:
+    """Materialize a CID state while keeping the compact user manifest unchanged."""
+    if not state:
+        return row
+    output = dict(row)
+    output["ligand"] = str(row.get("ligand", "")) if state == "holo" else ""
+    if state == "holo" and not output["ligand"] and row.get("cid_holo_json_path"):
+        payload = json.loads(Path(row["cid_holo_json_path"]).read_text(encoding="utf-8"))
+        for item in payload.get("sequences", []):
+            info = item.get("ligand", {}) if isinstance(item, dict) else {}
+            codes = info.get("ccdCodes", []) if isinstance(info, dict) else []
+            if codes:
+                output["ligand"] = str(codes[0]).replace("CCD_", "")
+                break
+    output["design_id"] = f"{row['design_id']}_{state}"
+    return output
 
 
 def _parse_model(model_dir: Path, design_id: str, model: str) -> dict[str, object]:
@@ -98,29 +118,35 @@ def _run_one(
     config: dict[str, object],
     *,
     resume: bool,
+    state: str | None = None,
 ) -> dict[str, object]:
     design_id = row["design_id"]
+    model_design_id = f"{design_id}_{state}" if state else design_id
     model_dir = shard_dir / "models" / model / design_id
+    if state:
+        model_dir = model_dir / state
     input_dir = shard_dir / "inputs" / model
     model_dir.mkdir(parents=True, exist_ok=True)
     input_dir.mkdir(parents=True, exist_ok=True)
     try:
-        input_path = _build_input(row, model, input_dir)
+        state_input = _state_row(row, state)
+        input_path = _build_input(state_input, model, input_dir)
     except Exception as exc:
         return _stage_empty(model, "missing", f"input: {exc}")
 
-    parsed = _parse_model(model_dir, design_id, model)
+    parsed = _parse_model(model_dir, model_design_id, model)
     if resume and parsed.get(f"{model}_status") == "success":
         parsed[f"{model}_reused"] = "1"
         parsed[f"{model}_log_path"] = ""
         parsed[f"{model}_input_path"] = input_path
         return parsed
 
-    log_path = run_dir / "logs" / f"level2_{model}_{design_id}.log"
+    log_suffix = f"_{state}" if state else ""
+    log_path = run_dir / "logs" / f"level2_{model}_{design_id}{log_suffix}.log"
     context: dict[str, object] = {
         "run_dir": run_dir,
         "shard_dir": shard_dir,
-        "design_id": design_id,
+        "design_id": model_design_id,
         "model": model,
         "input": input_path,
         "outdir": model_dir,
@@ -137,7 +163,7 @@ def _run_one(
     if command is None:
         return _stage_empty(model, "missing", f"{model} command is not configured")
     rc, tail = run_logged(command, log_path, cwd=shard_dir)
-    parsed = _parse_model(model_dir, design_id, model)
+    parsed = _parse_model(model_dir, model_design_id, model)
     parsed[f"{model}_log_path"] = str(log_path)
     parsed[f"{model}_input_path"] = input_path
     if rc != 0:
@@ -164,12 +190,27 @@ def run_shard(run_dir: str | Path, shard_index: int, *, resume: bool = True) -> 
     output: list[dict[str, object]] = []
     for row in rows:
         result: dict[str, object] = {"design_id": row["design_id"]}
-        for model in models:
-            result.update(_run_one(row, model, run, shard_dir, config, resume=resume))
-        statuses = {model: str(result.get(f"{model}_status", "missing")) for model in models}
+        states = ("apo", "holo") if str(row.get("mode", "")).lower() == "cid" else (None,)
+        for state in states:
+            for model in models:
+                stage = _run_one(row, model, run, shard_dir, config, resume=resume, state=state)
+                if state:
+                    for key, value in stage.items():
+                        suffix = key[len(model) + 1 :] if key.startswith(f"{model}_") else key
+                        result[f"{model}_{state}_{suffix}"] = value
+                else:
+                    result.update(stage)
+        if len(states) > 1:
+            result["states"] = "apo,holo"
+            statuses = {
+                f"{model}_{state}": str(result.get(f"{model}_{state}_status", "missing"))
+                for model in models for state in states
+            }
+        else:
+            statuses = {model: str(result.get(f"{model}_status", "missing")) for model in models}
         result["status"] = status_from_models(statuses)
         result["error"] = "; ".join(
-            str(result.get(f"{model}_error", "")) for model in models if result.get(f"{model}_error", "")
+            str(value) for key, value in result.items() if key.endswith("_error") and value
         )
         result["task_index"] = row.get("task_index", "")
         result["shard_index"] = str(shard_index)

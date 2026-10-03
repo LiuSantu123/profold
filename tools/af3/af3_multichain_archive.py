@@ -4,7 +4,10 @@ import json
 import os
 from pathlib import Path
 
-from Bio.PDB import MMCIFParser
+try:
+    from Bio.PDB import MMCIFParser
+except ImportError:  # AF3 environment may intentionally omit Biopython.
+    MMCIFParser = None
 from af3_multichain_core import confidence_metrics, protein_ids
 
 
@@ -63,19 +66,19 @@ def process_task(folder_path, chain_ids, cutoff, archive_dir, keep_source, input
             s = json.load(handle)
         with open(detail) as handle:
             d = json.load(handle)
-        parsed = MMCIFParser(QUIET=True).get_structure(name, str(structure))
-        if not list(parsed.get_atoms()):
+        parsed = MMCIFParser(QUIET=True).get_structure(name, str(structure)) if MMCIFParser is not None else None
+        if parsed is not None and not list(parsed.get_atoms()):
             raise ValueError('empty CIF')
         template = None
         if input_dir and (Path(input_dir) / f'{name}.json').is_file():
             with open(Path(input_dir) / f'{name}.json') as handle:
                 template = json.load(handle)
-        proteins = protein_ids(template) if template else [
+        proteins = protein_ids(template) if template else ([
             c.id for c in parsed[0] if any(r.resname in {
                 'ALA','ARG','ASN','ASP','CYS','GLN','GLU','GLY','HIS','ILE',
                 'LEU','LYS','MET','PHE','PRO','SER','THR','TRP','TYR','VAL'
             } for r in c)
-        ]
+        ] if parsed is not None else list(chain_ids))
         result = confidence_metrics(s, d, chain_ids, cutoff, proteins)
         result.update(model_name=name, status='success', error='', protein_chain_order=','.join(proteins))
         if template and not noseqs:

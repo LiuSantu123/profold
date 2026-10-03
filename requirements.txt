@@ -4,3 +4,7 @@ biopython>=1.81,<2
 gemmi>=0.6,<1
 pandas>=2,<3
 PyYAML>=6,<7
+# Optional report stage (required by `scripts/profold.py report`).
+matplotlib>=3.7,<4
+reportlab>=4,<5
+Pillow>=10,<12

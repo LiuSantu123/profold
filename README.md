@@ -10,16 +10,18 @@ prediction. The former Level 3 sequence-screening module has been removed.
 
 **详细中文说明：** [ProFold 使用与输出说明](docs/PROFOLD_GUIDE.md)
 
-> **v38.1 验证状态：** Level 1 ESMFold2/AF3 和 Level 2 的主要批处理流程已完成局部真实调试；跨 Level 1→Level 2→Rosetta→最终交付的完整端到端测试尚未完成。
+> **v38.2 当前状态：** 新增简洁 facade：用户输入 `designs.tsv`，机器配置 `config.local.json`，主结果 `summary.tsv`。f101 RTX 3090 四类 Level 1 真实测试均已完成。
 
 ## Pipeline
 
 | Stage | Purpose | Models |
 | --- | --- | --- |
 | Level 1 | High-throughput foldback and first-pass complex confidence | ESMFold + AlphaFold 3 |
-| Level 2 | Multi-model confirmation for a selected subset | Protenix 2 + Boltz-2 + OpenDDE + ESMFold2 |
+| Level 2 | Multi-model confirmation for a selected subset | Protenix + Boltz-2 + OpenDDE |
 
-Each stage accepts a TSV manifest and writes an independent run directory. Use
+Each stage accepts a TSV manifest and writes an independent run directory. For
+the compact v38.2 interface, use `scripts/profold.py`; the legacy level
+commands remain available as adapters. Use
 `common/select_manifest.py` to choose designs between stages; no hidden state is
 required from an earlier run.
 
@@ -40,6 +42,24 @@ to `config.local.json` and set every executable, wrapper, model, database,
 USalign, and Rosetta path for the current machine before running.
 
 ## Run a stage
+
+Compact v38.2 entry point:
+
+```bash
+python scripts/profold.py prepare --input test/monomer/designs.tsv --config test/config.f101.json --level level1 --outdir test/monomer/run
+python scripts/profold.py run --run-dir test/monomer/run --level level1
+python scripts/profold.py aggregate --run-dir test/monomer/run --level level1
+# Generate plots, Top-N structure panels, and a BoltzGen-style PDF after Level 2.
+python scripts/profold.py report --run-dir runs/level2 --top-n 10
+```
+
+The user-facing output is `summary.tsv`; model-specific artifacts remain under
+`artifacts/`, `metrics/`, and `logs/`.
+
+The report command writes `report/` with `profold_level2_report.pdf`,
+`ranking.tsv`, metric distributions, model scatter plots, a design×model
+heatmap, model mean bars, and VMD/Tachyon-rendered Top-N structure panels.
+Use `--no-structures` when only statistics are needed.
 
 Prepare and run Level 1:
 
@@ -66,7 +86,8 @@ corresponding `submit_level*.sh` wrapper to Slurm. Repeating a worker enables
 resume for complete results; use `--no-resume` when a fresh prediction is
 required.
 
-For a user-facing sequence CSV, use the campaign entry point:
+For a legacy user-facing sequence CSV, use the campaign entry point when that
+script is available in the deployment:
 
 ```bash
 python scripts/submit_campaign.py \
@@ -143,10 +164,10 @@ Run the regression suite with:
 python -m unittest discover -s tests -v
 ```
 
-The current development version is `0.0.38.1` (`v0.0.38.1`). To build the release archive:
+The current development version is `0.0.38.2` (`v0.0.38.2`). To build the release archive:
 
 ```bash
-bash scripts/publish_release.sh LiuSantu123/profold v0.0.38.1
+bash scripts/publish_release.sh LiuSantu123/profold v0.0.38.2
 ```
 
 The command expects authenticated `gh` and a clean worktree. It creates a

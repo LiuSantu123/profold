@@ -25,7 +25,11 @@ import hashlib
 import tempfile
 from pathlib import Path
 import numpy as np
-from Bio.PDB import PDBParser, Polypeptide
+try:
+    from Bio.PDB import PDBParser, Polypeptide
+except ImportError:  # Bio is optional; AF3 itself does not require Biopython.
+    PDBParser = None
+    Polypeptide = None
 from af3_multichain_core import read_designs, protein_ids, fill_template
 from af3_multichain_archive import load_bundle
 
@@ -106,11 +110,14 @@ def run_esmfold_cid_clean(args, seqs, esm_output_dir):
     # 解析结果
     esm_results = {}
     pdb_files = list(Path(esm_output_dir).glob("*.pdb"))
-    parser = PDBParser(QUIET=True)
+    parser = PDBParser(QUIET=True) if PDBParser is not None else None
 
     logger.info(f"📊 处理 {len(pdb_files)} 个ESMFold结果...")
 
     for pdb_file in pdb_files:
+        if parser is None:
+            logger.info("Biopython unavailable; skip optional ESMFold PDB metric parsing")
+            break
         model_name = pdb_file.stem
         try:
             struct = parser.get_structure('x', str(pdb_file))

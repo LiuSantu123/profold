@@ -22,9 +22,13 @@ def main() -> int:
     run = Path(args.run_dir).resolve()
     models = ("protenix", "boltz2", "opendde")
     rows = join_results(run, model_names=models)
+    has_states = any(str(row.get("states", "")).strip() for row in rows)
+    metric_models = tuple(
+        f"{model}_{state}" for state in ("apo", "holo") for model in models
+    ) if has_states else models
     write_tsv(run / "results/result_manifest.tsv", rows)
-    write_csv(run / "metrics/level2.csv", metric_rows(rows, models))
-    write_tsv(run / "status/status.tsv", status_rows(rows, "level2", models))
+    write_csv(run / "metrics/level2.csv", metric_rows(rows, metric_models))
+    write_tsv(run / "status/status.tsv", status_rows(rows, "level2", metric_models))
     counts: dict[str, int] = {}
     for row in rows:
         counts[str(row.get("status", "missing"))] = counts.get(str(row.get("status", "missing")), 0) + 1
