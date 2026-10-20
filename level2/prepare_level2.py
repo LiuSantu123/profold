@@ -16,17 +16,20 @@ from common.pipeline import prepare_run  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Prepare v37 Level 2 run")
+    parser = argparse.ArgumentParser(description="Prepare ProFold v38.1 Level 2 run")
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--outdir", required=True)
     parser.add_argument("--shard-size", type=int, default=8)
     parser.add_argument("--config", help="JSON with wrapper paths and commands")
+    parser.add_argument("--cid", action="store_true", help="prepare apo/holo Level 2 mode")
     args = parser.parse_args()
     config = {}
     if args.config:
         config = json.loads(Path(args.config).read_text(encoding="utf-8"))
         if not isinstance(config, dict):
             raise SystemExit("--config must contain a JSON object")
+    if args.cid:
+        config["level2_mode"] = "cid"
     output, rows = prepare_run(
         args.manifest,
         args.outdir,

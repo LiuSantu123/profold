@@ -28,7 +28,7 @@ profold/                 # 本仓库
 | protenix | [Protenix](https://github.com/bytedance/Protenix) | 保留原 `protenix_100.py` 及 `protenix_base_20250630_v1.0.0` 默认模型；不是已验证的 Protenix-v2 adapter。升级需匹配 `PROTENIX_SCRIPT`/模型名或 `commands.protenix` 并实测输出 |
 | boltz | [Boltz](https://github.com/jwohlwend/boltz) | `boltz predict --write_full_pae --write_full_pde`；GPU kernel 由本机安装决定 |
 | opendde | [OpenDDE](https://github.com/DeepPrinciple/OpenDDE) | 自带 `opendde_predict.sh` 与 FASTA 转换器，环境需提供 `opendde pred`；配置数据目录 |
-| esmfold2 | 预留 | 当前 Level2 未接入，不提供假定可执行的环境 |
+| esmfold2 | site-specific | Level 2 通过 `commands.esmfold2` 接入；未配置时尝试 `wrappers/run_esmfold2.sh` 的 `esmfold2 predict` 约定。不同发行版 CLI 不同，必须先做单设计 smoke test |
 
 ## 配置和检查
 

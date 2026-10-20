@@ -19,6 +19,8 @@ DESIGN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 PATH_FIELDS = {
     "fasta_path",
     "structure_path",
+    "reference_structure_path",
+    "backbone_structure_path",
     "esmfold_structure_path",
     "af3_json_path",
     "cid_apo_json_path",
@@ -27,6 +29,15 @@ PATH_FIELDS = {
     "protenix_input_path",
     "boltz_input_path",
     "opendde_input_path",
+    "esmfold2_input_path",
+    "apo_protenix_input_path",
+    "holo_protenix_input_path",
+    "apo_boltz_input_path",
+    "holo_boltz_input_path",
+    "apo_opendde_input_path",
+    "holo_opendde_input_path",
+    "apo_esmfold2_input_path",
+    "holo_esmfold2_input_path",
     "model_input_path",
     "source_manifest",
     "af3_structure_path",
@@ -156,10 +167,10 @@ def read_manifest(path: str | Path, *, require_sequence: bool = False) -> list[d
     return rows
 
 
-def _field_order(rows: Iterable[Mapping[str, object]], preferred: Iterable[str] = ()) -> list[str]:
+def _field_order(rows: Iterable[Mapping[str, object]], preferred: Iterable[str] = (), *, include_core: bool = True) -> list[str]:
     keys: list[str] = []
     seen: set[str] = set()
-    for key in list(preferred) + list(CORE_FIELDS):
+    for key in list(preferred) + (list(CORE_FIELDS) if include_core else []):
         if key not in seen:
             keys.append(key)
             seen.add(key)
@@ -171,11 +182,17 @@ def _field_order(rows: Iterable[Mapping[str, object]], preferred: Iterable[str] 
     return keys
 
 
-def write_tsv(path: str | Path, rows: Iterable[Mapping[str, object]], *, preferred: Iterable[str] = ()) -> None:
+def write_tsv(
+    path: str | Path,
+    rows: Iterable[Mapping[str, object]],
+    *,
+    preferred: Iterable[str] = (),
+    include_core: bool = True,
+) -> None:
     rows_list = [dict(row) for row in rows]
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    fields = _field_order(rows_list, preferred)
+    fields = _field_order(rows_list, preferred, include_core=include_core)
     tmp = output.with_name(f".{output.name}.tmp")
     with tmp.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", extrasaction="ignore")
@@ -185,11 +202,11 @@ def write_tsv(path: str | Path, rows: Iterable[Mapping[str, object]], *, preferr
     tmp.replace(output)
 
 
-def write_csv(path: str | Path, rows: Iterable[Mapping[str, object]], *, preferred: Iterable[str] = ()) -> None:
+def write_csv(path: str | Path, rows: Iterable[Mapping[str, object]], *, preferred: Iterable[str] = (), include_core: bool = True) -> None:
     rows_list = [dict(row) for row in rows]
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    fields = _field_order(rows_list, preferred)
+    fields = _field_order(rows_list, preferred, include_core=include_core)
     tmp = output.with_name(f".{output.name}.tmp")
     with tmp.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")

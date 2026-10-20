@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ $# -lt 1 || $# -gt 2 ]]; then
-  echo "Usage: $0 OWNER/REPO [VERSION, default v0.0.37]" >&2
+  echo "Usage: $0 OWNER/REPO [VERSION, default v0.0.38.1]" >&2
   echo "The repository must already exist and gh must be authenticated." >&2
   exit 2
 fi
 REPO="$1"
-VERSION="${2:-v0.0.37}"
+VERSION="${2:-v0.0.38.1}"
 [[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 2
-[[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
+[[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || exit 2
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 gh auth status --hostname github.com

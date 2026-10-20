@@ -7,14 +7,19 @@
   "af3_script": "${SOFTWARE_ROOT}/alphafold3/run_alphafold.py",
   "af3_model_dir": "${DATA_ROOT}/alphafold3/models",
   "af3_db_dir": "${DATA_ROOT}/alphafold3",
+  "level2_mode": "single",
+  "level2_models": ["protenix", "boltz2", "opendde", "esmfold2"],
   "cid_wrapper": "${V37_ROOT}/tools/af3/af3_single_node_v18.py",
   "cid_monitor": "${V37_ROOT}/tools/af3/af3_monitor_v16.py",
   "cid_pae_cutoff": 15.0,
   "cid_keep_source": false,
   "boltz_bin": "${CONDA_ROOT}/envs/boltz/bin/boltz",
   "boltz_no_kernels": false,
+  "esmfold2_bin": "${CONDA_ROOT}/envs/esmfold2/bin/esmfold2",
+  "esmfold2_wrapper": "${V37_ROOT}/wrappers/run_esmfold2_local_batch.sh",
   "commands": {
     "protenix": ["env", "PROTENIX_PYTHON=${CONDA_ROOT}/envs/protenix/bin/python", "PROTENIX_SOURCE=${SOFTWARE_ROOT}/Protenix", "bash", "${V37_ROOT}/wrappers/run_protenix.sh", "{protenix_input}", "{protenix_outdir}"],
     "opendde": ["env", "CONDA_BASE=${CONDA_ROOT}", "OPENDDE_ENV=opendde", "OPENDDE_ROOT_DIR=${DATA_ROOT}/opendde", "bash", "${V37_ROOT}/wrappers/opendde_predict.sh", "-i", "{opendde_input}", "-o", "{opendde_outdir}"]
+    ,"esmfold2": ["env", "ESMFOLD2_BIN=${CONDA_ROOT}/envs/esmfold2/bin/esmfold2", "bash", "${V37_ROOT}/wrappers/run_esmfold2.sh", "-i", "{esmfold2_input}", "-o", "{esmfold2_outdir}"]
   }
 }

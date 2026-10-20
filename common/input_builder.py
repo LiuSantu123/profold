@@ -244,11 +244,26 @@ def build_af3_json(row: Mapping[str, object], destination: str | Path, *, seed: 
 
     source = row.get("af3_json_path") or row.get("target_spec_path")
     if not source:
-        raise FileNotFoundError("af3_json_path/target_spec_path is not provided")
-    source_path = Path(str(source)).expanduser().resolve()
-    payload = json.loads(source_path.read_text(encoding="utf-8"))
+        # A plain sequence CSV is a valid direct Level1 input.  Build the
+        # minimal AF3 protein-only dialect instead of requiring a template.
+        records = protein_records(row)
+        payload = {
+            "name": str(row["design_id"]),
+            "dialect": "alphafold3",
+            "version": 1,
+            "modelSeeds": [int(seed)],
+            "sequences": [
+                {"protein": {"id": chain_id, "sequence": sequence,
+                              "unpairedMsa": "", "pairedMsa": "", "templates": []}}
+                for chain_id, sequence in records
+            ],
+        }
+        source_path = None
+    else:
+        source_path = Path(str(source)).expanduser().resolve()
+        payload = json.loads(source_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(f"AF3 JSON must contain an object: {source_path}")
+        raise ValueError(f"AF3 JSON must contain an object: {source_path or '<generated>'}")
     payload = copy.deepcopy(payload)
     design_id = str(row["design_id"])
     payload["name"] = design_id
@@ -288,7 +303,9 @@ def _copy_or_build_model_input(
     return str(output.resolve())
 
 
-def build_protenix_json(row: Mapping[str, object], destination: str | Path) -> str:
+def build_protenix_json(
+    row: Mapping[str, object], destination: str | Path, *, input_field: str = "protenix_input_path"
+) -> str:
     """Build the no-MSA Protenix JSON accepted by the local wrapper."""
 
     records = protein_records(row)
@@ -311,10 +328,12 @@ def build_protenix_json(row: Mapping[str, object], destination: str | Path) -> s
         ]
         output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    return _copy_or_build_model_input(row, destination, "protenix_input_path", builder, "protenix")
+    return _copy_or_build_model_input(row, destination, input_field, builder, "protenix")
 
 
-def build_boltz_yaml(row: Mapping[str, object], destination: str | Path) -> str:
+def build_boltz_yaml(
+    row: Mapping[str, object], destination: str | Path, *, input_field: str = "boltz_input_path"
+) -> str:
     """Build a minimal Boltz no-MSA YAML, unless an explicit input is given."""
 
     records = protein_records(row)
@@ -332,10 +351,12 @@ def build_boltz_yaml(row: Mapping[str, object], destination: str | Path) -> str:
             )
         output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    return _copy_or_build_model_input(row, destination, "boltz_input_path", builder, "boltz2")
+    return _copy_or_build_model_input(row, destination, input_field, builder, "boltz2")
 
 
-def build_opendde_fasta(row: Mapping[str, object], destination: str | Path) -> str:
+def build_opendde_fasta(
+    row: Mapping[str, object], destination: str | Path, *, input_field: str = "opendde_input_path"
+) -> str:
     """Build an OpenDDE FASTA (colon-separated chains), unless supplied."""
 
     records = protein_records(row)
@@ -346,7 +367,28 @@ def build_opendde_fasta(row: Mapping[str, object], destination: str | Path) -> s
             encoding="utf-8",
         )
 
-    return _copy_or_build_model_input(row, destination, "opendde_input_path", builder)
+    return _copy_or_build_model_input(row, destination, input_field, builder)
+
+
+def build_esmfold2_fasta(
+    row: Mapping[str, object], destination: str | Path, *, input_field: str = "esmfold2_input_path"
+) -> str:
+    """Build a FASTA for ESMFold2's single-sequence/chain adapter.
+
+    ESMFold2 installations do not share one stable CLI.  The Level 2 worker
+    therefore owns the input contract (one design per FASTA) while the
+    configured command owns model-specific invocation details.
+    """
+
+    records = protein_records(row)
+
+    def builder(output: Path) -> None:
+        output.write_text(
+            f">{row['design_id']}\n{':'.join(sequence for _chain, sequence in records)}\n",
+            encoding="utf-8",
+        )
+
+    return _copy_or_build_model_input(row, destination, input_field, builder)
 
 
 def status_from_models(statuses: Mapping[str, str]) -> str:

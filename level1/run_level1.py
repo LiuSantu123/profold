@@ -20,7 +20,7 @@ from common.runner import configured_command, run_logged  # noqa: E402
 from level1.cid import cid_command, validate_cid_rows  # noqa: E402
 
 
-ESMFOLD_BIN = Path("/xcfhome/yzmeng/miniconda3/envs/zb/bin/esm-fold")
+ESMFOLD_BIN = Path("/home/amax/.conda/envs/esmfold/bin/esm-fold")
 AF3_MODES = {"direct", "for_wj_cid", "cid"}
 
 
@@ -77,6 +77,9 @@ def _default_command(config: dict[str, object], name: str, context: dict[str, ob
     if name == "af3" and context.get("af3_mode") == "cid":
         return cid_command(config)
     if name == "esmfold":
+        level1_wrapper = config.get("esmfold_level1_wrapper")
+        if level1_wrapper:
+            return ["bash", str(level1_wrapper), "-i", "{esm_input}", "-o", "{esm_outdir}"]
         command = [
             str(config.get("esmfold_bin", ESMFOLD_BIN)),
             "-i", "{esm_input}", "-o", "{esm_outdir}",

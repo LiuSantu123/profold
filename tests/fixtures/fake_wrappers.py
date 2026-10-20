@@ -13,7 +13,13 @@ def ids_from_fasta(path: Path) -> list[str]:
 
 def write_structure(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("data_fake\n")
+    path.write_text(
+        "ATOM      1  CA  ALA A   1       1.000   2.000   3.000  1.00 88.00           C  \nEND\n"
+    )
+
+
+def batch_files(path: Path, suffix: str) -> list[Path]:
+    return sorted(path.glob(f"*{suffix}")) if path.is_dir() else [path]
 
 
 def main() -> int:
@@ -27,13 +33,15 @@ def main() -> int:
     if kind == "esmfold":
         input_path, outdir = value("--input"), value("--outdir")
         outdir.mkdir(parents=True, exist_ok=True)
-        ids = ids_from_fasta(input_path)
         with (outdir / "esmfold2_summary.csv").open("w", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(["design_id", "mean_plddt"])
-            for design_id in ids:
-                writer.writerow([design_id, "88.0"])
-                write_structure(outdir / f"{design_id}.pdb")
+            inputs = batch_files(input_path, ".fasta")
+            for source in inputs:
+                ids = ids_from_fasta(source)
+                for design_id in ids:
+                    writer.writerow([design_id, "88.0"])
+                    write_structure(outdir / f"{design_id}.pdb")
         return 0
 
     if kind == "af3":
@@ -67,34 +75,37 @@ def main() -> int:
 
     if kind == "protenix":
         input_path, outdir = Path(args[0]), Path(args[1])
-        payload = json.loads(input_path.read_text())
-        design_id = payload[0]["name"]
         outdir.mkdir(parents=True, exist_ok=True)
-        (outdir / f"{design_id}_summary_confidence_sample_0.json").write_text(
-            json.dumps({"plddt": 87.0, "iptm": 0.75})
-        )
-        write_structure(outdir / f"{design_id}.cif")
+        for source in batch_files(input_path, ".json"):
+            payload = json.loads(source.read_text())
+            design_id = payload[0]["name"]
+            (outdir / f"{design_id}_summary_confidence_sample_0.json").write_text(
+                json.dumps({"plddt": 87.0, "iptm": 0.75})
+            )
+            write_structure(outdir / f"{design_id}.cif")
         return 0
 
     if kind == "boltz2":
-        input_path, outdir = value("--out_dir"), value("--out_dir")
+        outdir = value("--out_dir")
         input_path = Path(args[args.index("predict") + 1])
-        design_id = input_path.stem
         outdir.mkdir(parents=True, exist_ok=True)
-        (outdir / f"confidence_{design_id}.json").write_text(
-            json.dumps({"plddt": 0.86, "complex_iplddt": 0.74})
-        )
-        write_structure(outdir / f"{design_id}.cif")
+        for source in batch_files(input_path, ".yaml"):
+            design_id = source.stem
+            (outdir / f"confidence_{design_id}.json").write_text(
+                json.dumps({"plddt": 0.86, "complex_iplddt": 0.74})
+            )
+            write_structure(outdir / f"{design_id}.cif")
         return 0
 
     if kind == "opendde":
         input_path, outdir = value("-i"), value("-o")
-        design_id = input_path.stem
         outdir.mkdir(parents=True, exist_ok=True)
-        (outdir / f"{design_id}_summary_confidences.json").write_text(
-            json.dumps({"plddt": 84.0, "iptm": 0.7})
-        )
-        write_structure(outdir / f"{design_id}.cif")
+        for source in batch_files(input_path, ".fasta"):
+            design_id = source.stem
+            (outdir / f"{design_id}_summary_confidences.json").write_text(
+                json.dumps({"plddt": 84.0, "iptm": 0.7})
+            )
+            write_structure(outdir / f"{design_id}.cif")
         return 0
 
     raise SystemExit(f"unknown kind: {kind}")

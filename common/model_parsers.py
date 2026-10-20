@@ -9,11 +9,12 @@ as ``partial`` instead of manufacturing confidence values.
 from __future__ import annotations
 
 import csv
+import fnmatch
 import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 
 def _number(value: object) -> object:
@@ -53,6 +54,18 @@ def _files(root: Path, patterns: Iterable[str]) -> list[Path]:
     return sorted(found)
 
 
+def _indexed_files(root: Path, patterns: Iterable[str], indexed: Iterable[Path] | None = None) -> list[Path]:
+    """Resolve file patterns, optionally from a batch-built file index."""
+
+    if indexed is None:
+        return _files(root, patterns)
+    wanted = tuple(patterns)
+    return sorted(
+        path for path in indexed
+        if path.is_file() and any(fnmatch.fnmatch(path.name, pattern) for pattern in wanted)
+    )
+
+
 def _choose(paths: list[Path], design_id: str) -> Path | None:
     if not paths:
         return None
@@ -90,9 +103,52 @@ def _load_json(path: Path | None) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _structure(root: Path, design_id: str) -> Path | None:
-    paths = _files(root, (f"{design_id}*.cif", f"{design_id}*.mmcif", f"{design_id}*.pdb", "*.cif", "*.mmcif", "*.pdb"))
+def _load_npz(paths: Iterable[Path]) -> dict[str, Any]:
+    try:
+        import numpy as np
+    except ImportError:
+        return {}
+    merged: dict[str, Any] = {}
+    for path in paths:
+        try:
+            with np.load(path, allow_pickle=False) as archive:
+                for key in archive.files:
+                    value = archive[key]
+                    merged[key] = value.tolist()
+        except (OSError, ValueError):
+            continue
+    return merged
+
+
+def _structure(root: Path, design_id: str, indexed: Iterable[Path] | None = None) -> Path | None:
+    paths = _indexed_files(root, (f"{design_id}*.cif", f"{design_id}*.mmcif", f"{design_id}*.pdb", "*.cif", "*.mmcif", "*.pdb"), indexed)
     return _choose(paths, design_id)
+
+
+def _cif_token_chain_ids(path: Path | None, length: int) -> list[str]:
+    """Return residue-level chain IDs for Boltz NPZ arrays when possible.
+
+    Boltz PAE/PLDDT NPZ files contain only numeric arrays.  The corresponding
+    CIF is the authoritative source for chain boundaries, so use Biopython
+    when installed and leave the arrays untouched when it is unavailable.
+    """
+
+    if path is None or length < 1:
+        return []
+    try:
+        from Bio.PDB import MMCIFParser  # type: ignore
+        structure = MMCIFParser(QUIET=True).get_structure("profold", str(path))
+        chains: list[str] = []
+        for chain in structure[0]:
+            for residue in chain:
+                # Skip waters and hetero residues; Boltz protein arrays are
+                # residue/token aligned for the protein chains.
+                if str(residue.id[0]).strip() not in {"", "W"}:
+                    continue
+                chains.append(str(chain.id))
+        return chains[:length] if len(chains) >= length else []
+    except Exception:
+        return []
 
 
 def _status(summary: Path | None, structure: Path | None, root: Path) -> tuple[str, str]:
@@ -160,12 +216,14 @@ def parse_esmfold(
     if native:
         # Exact native filename prevents cross-design and legacy CIF reuse.
         pdb = directory / f"{design_id}.pdb"
+        confidence = directory / f"{design_id}_confidence.json"
         result = {
             f"{prefix}_status": "failed" if directory.exists() else "missing",
             f"{prefix}_error": "native ESMFold PDB is missing",
             f"{prefix}_output_dir": str(directory) if directory.exists() else "",
             f"{prefix}_summary_path": "",
             f"{prefix}_structure_path": "",
+            f"{prefix}_full_data_json": str(confidence) if confidence.is_file() else "",
         }
         if pdb.is_file():
             try:
@@ -412,8 +470,10 @@ def parse_af3(root: str | Path, design_id: str, *, mode: str = "direct") -> dict
     return result
 
 
-def parse_summary_model(root: str | Path, design_id: str, model: str) -> dict[str, object]:
+def parse_summary_model(root: str | Path, design_id: str, model: str, *, indexed_files: Iterable[Path] | None = None) -> dict[str, object]:
     directory = Path(root).resolve()
+    if model == "esmfold2":
+        return parse_esmfold(directory, design_id, prefix="esmfold2", native=True)
     if model == "protenix":
         patterns = ("*_summary_confidence_sample_*.json", "*_summary_confidences.json")
     elif model == "boltz2":
@@ -422,9 +482,9 @@ def parse_summary_model(root: str | Path, design_id: str, model: str) -> dict[st
         patterns = ("*_summary_confidence_sample_*.json", "*_summary_confidences.json")
     else:
         raise ValueError(f"unsupported summary model: {model}")
-    summary = _choose(_files(directory, patterns), design_id)
+    summary = _choose(_indexed_files(directory, patterns, indexed_files), design_id)
     data = _summary_row(summary)
-    structure = _structure(directory, design_id)
+    structure = _structure(directory, design_id, indexed_files)
     status, error = _status(summary, structure, directory)
     prefix = model
     result: dict[str, object] = {
@@ -434,12 +494,38 @@ def parse_summary_model(root: str | Path, design_id: str, model: str) -> dict[st
         f"{prefix}_summary_json": str(summary) if summary else "",
         f"{prefix}_structure_path": str(structure) if structure else "",
     }
+    full_data: Path | None = None
+    npz_paths: list[Path] = []
     if model in {"protenix", "opendde"}:
         full_patterns = ("*_full_data_sample_*.json", "*_full_data*.json")
         full_data = _choose(_files(directory, full_patterns), design_id)
         result[f"{prefix}_full_data_json"] = str(full_data) if full_data else ""
     if model == "boltz2":
-        affinity = _choose(_files(directory, ("affinity_*.json",)), design_id)
+        candidates = _indexed_files(directory, ("pae_*.npz", "plddt_*.npz", "pde_*.npz", "*_model_*.npz"), indexed_files)
+        # Batch Boltz writes every design's confidence arrays below one
+        # predictions directory.  Keep only arrays whose filename or parent
+        # path identifies this design; otherwise each row would claim all
+        # designs' NPZ files and the delivery folder would contain cross-
+        # design full-data references.
+        design_candidates = [
+            path for path in candidates
+            if design_id in path.name or design_id in path.parts
+        ]
+        if design_candidates:
+            candidates = design_candidates
+        # Confidence JSON is the ranking source.  Restrict PAE/PDE/PLDDT to
+        # the same model rank; otherwise a multi-sample run would leak every
+        # diffusion sample into the final delivery directory.
+        rank_marker = "_model_"
+        rank = ""
+        if summary is not None and rank_marker in summary.stem:
+            rank = summary.stem.rsplit(rank_marker, 1)[1]
+        npz_paths = [path for path in candidates if rank and f"_model_{rank}" in path.stem]
+        if not npz_paths:
+            npz_paths = [path for path in candidates if "_model_0" in path.stem]
+        if npz_paths:
+            result[f"{prefix}_full_data_npz"] = ";".join(str(path) for path in npz_paths)
+        affinity = _choose(_indexed_files(directory, ("affinity_*.json",), indexed_files), design_id)
         affinity_data = _load_json(affinity)
         result[f"{prefix}_affinity_json"] = str(affinity) if affinity else ""
         for key in ("affinity_pred_value", "affinity_probability_binary"):
@@ -475,8 +561,83 @@ def parse_summary_model(root: str | Path, design_id: str, model: str) -> dict[st
         result[f"{prefix}_mean_plddt"] = _scaled_plddt(data["plddt"])
     elif "complex_plddt" in data:
         result[f"{prefix}_mean_plddt"] = _scaled_plddt(data["complex_plddt"])
+    # Protenix/OpenDDE call the PAE-like summary metric GPDE/PDE.  Normalize
+    # those aliases here so the canonical table does not depend on model names.
+    for source in ("mean_pae", "pae_mean", "gpde", "complex_pde", "complex_gpde"):
+        if source in data:
+            result[f"{prefix}_mean_pae"] = _number(data[source])
+            break
+    for source in ("mean_interface_pae", "ipae_mean", "complex_ipde", "complex_ipae"):
+        if source in data:
+            result[f"{prefix}_mean_interface_pae"] = _number(data[source])
+            break
+    if f"{prefix}_mean_interface_pae" not in result:
+        pair = data.get("chain_pair_gpde", data.get("chain_pair_pae"))
+        if isinstance(pair, list):
+            values = [float(value) for i, line in enumerate(pair) if isinstance(line, list) for j, value in enumerate(line) if j > i and isinstance(value, (int, float))]
+            if values:
+                result[f"{prefix}_mean_interface_pae"] = _number(sum(values) / len(values))
     if model == "boltz2" and "complex_iplddt" in data:
         result[f"{prefix}_mean_interface_plddt"] = _scaled_plddt(data["complex_iplddt"])
+    detail_payload = _load_json(full_data)
+    if npz_paths:
+        detail_payload.update(_load_npz(npz_paths))
+        # Boltz NPZ has no chain labels.  Recover residue-level labels from
+        # the selected best CIF so the common extractor can emit per-chain
+        # PAE/pLDDT and pairwise interface metrics.
+        if "pae" in detail_payload and "token_chain_ids" not in detail_payload:
+            pae_value = detail_payload.get("pae")
+            try:
+                pae_length = len(pae_value)
+            except TypeError:
+                pae_length = 0
+            chain_ids = _cif_token_chain_ids(structure, pae_length)
+            if chain_ids:
+                detail_payload["token_chain_ids"] = chain_ids
+    if detail_payload:
+        try:
+            from .confidence_metrics import extract_confidence_metrics
+            detail = extract_confidence_metrics(detail_payload)
+            for key, value in detail.items():
+                result[f"{prefix}_{key}"] = value
+        except Exception:
+            # Summary parsing remains usable when an optional full-data format
+            # is malformed; the path is retained for audit and later retry.
+            pass
+    chain_arrays = {
+        "ptm": data.get("chain_ptm", data.get("chains_ptm")),
+        "iptm": data.get("chain_iptm"),
+        "plddt": data.get("chain_plddt"),
+        "gpde": data.get("chain_gpde"),
+        "pae": data.get("chain_pae", data.get("chain_gpde")),
+    }
+    if any(isinstance(values, (list, Mapping)) for values in chain_arrays.values()):
+        chain_ids: list[str] = []
+        if detail_payload:
+            detail = detail_payload
+            raw_ids = detail.get("token_asym_id", detail.get("token_chain_ids", detail.get("asym_id", [])))
+            if isinstance(raw_ids, list):
+                chain_ids = list(dict.fromkeys(str(item) for item in raw_ids))
+        existing = result.get(f"{prefix}_chain_metrics", {})
+        chain_metrics = dict(existing) if isinstance(existing, dict) else {}
+        max_length = max((len(values) for values in chain_arrays.values() if isinstance(values, (list, Mapping))), default=0)
+        for index in range(max_length):
+            chain = chain_ids[index] if index < len(chain_ids) else str(index)
+            entry = dict(chain_metrics.get(chain, {})) if isinstance(chain_metrics.get(chain), dict) else {}
+            for metric, values in chain_arrays.items():
+                if isinstance(values, list) and index < len(values) and values[index] not in (None, ""):
+                    entry[metric] = _scaled_plddt(values[index]) if metric == "plddt" else _number(values[index])
+                elif isinstance(values, Mapping):
+                    # Boltz stores chain PTM values as {chain_id: score}.
+                    mapped = ""
+                    for raw_key, raw_value in values.items():
+                        if str(raw_key) in {chain, str(index)}:
+                            mapped = raw_value
+                            break
+                    if mapped not in (None, ""):
+                        entry[metric] = _scaled_plddt(mapped) if metric == "plddt" else _number(mapped)
+            chain_metrics[chain] = entry
+        result[f"{prefix}_chain_metrics"] = chain_metrics
     return result
 
 

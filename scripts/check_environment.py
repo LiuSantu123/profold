@@ -10,8 +10,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def check(config, level):
+def check(config, level, base_dir=None):
     failures = []
+    base_dir = Path(base_dir or Path.cwd()).expanduser().resolve()
 
     def record(label, ok):
         print(f'{"OK" if ok else "MISSING"} {label}')
@@ -29,10 +30,10 @@ def check(config, level):
         record(str(p), ok)
 
     commands = config.get('commands', {})
-    models = {'level1': ('esmfold', 'af3'), 'level2': ('protenix', 'boltz2', 'opendde')}[level]
+    models = {'level1': ('esmfold', 'af3'), 'level2': ('protenix', 'boltz2', 'opendde', 'esmfold2')}[level]
     keys = {'esmfold': ('esmfold_bin',), 'af3': ('af3_python', 'af3_script', 'af3_model_dir', 'af3_db_dir'),
             'boltz2': ('boltz_bin',), 'protenix': ('protenix_wrapper',),
-            'opendde': ('opendde_wrapper',)}
+            'opendde': ('opendde_wrapper',), 'esmfold2': ('esmfold2_bin',)}
     for model in models:
         cmd = commands.get(model, commands.get('boltz') if model == 'boltz2' else None)
         if cmd:
@@ -47,8 +48,22 @@ def check(config, level):
         else:
             for key in keys[model]:
                 record(f'config {key}', bool(config.get(key)))
-                if config.get(key):
-                    path(config[key], executable=key.endswith(('_python', '_bin')))
+            if config.get(key):
+                path(config[key], executable=key.endswith(('_python', '_bin')))
+    if level == 'level2':
+        # These paths are consumed after prediction; catching them on the
+        # login node avoids a successful GPU run followed by a broken
+        # aggregate/closeout stage.
+        if config.get('usalign_path'):
+            path(config['usalign_path'], executable=True)
+        if config.get('rosetta_filter_script'):
+            path(config['rosetta_filter_script'], executable=True)
+    run_script = config.get('run_script')
+    if run_script:
+        run_path = Path(run_script).expanduser()
+        if not run_path.is_absolute():
+            run_path = base_dir / run_path
+        path(run_path)
     if level == 'level1' and config.get('af3_mode') == 'cid':
         for key, default in [('cid_wrapper', 'af3_single_node_v18.py'), ('cid_monitor', 'af3_monitor_v16.py')]:
             path(config.get(key, str(ROOT / 'tools/af3' / default)))
@@ -61,4 +76,4 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--level', choices=['level1', 'level2'], required=True)
     args = parser.parse_args()
-    sys.exit(check(json.loads(args.config.read_text()), args.level))
+    sys.exit(check(json.loads(args.config.read_text()), args.level, args.config.parent))
