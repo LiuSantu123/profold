@@ -117,6 +117,11 @@ class PublicEntrypointTests(unittest.TestCase):
             with (destination / "summary.tsv").open(encoding="utf-8", newline="") as handle:
                 summary = next(csv.DictReader(handle, delimiter="\t"))
             self.assertEqual(summary["structure_path"], "structures/d1_protenix.cif")
-            self.assertEqual(summary["full_data_path"], "confidences/d1_protenix_full_data.json")
+            # Delivery packs the confidence/full-data files into one archive, so
+            # the public path points at the tarball and the member name stays in
+            # the row.
+            self.assertEqual(summary["full_data_path"], "full_data/full_data.tar.gz")
+            self.assertIn("d1_protenix_full_data.json", summary["full_data_archive_members"])
+            self.assertTrue((destination / "full_data/full_data.tar.gz").is_file())
             self.assertFalse(Path(summary["structure_path"]).is_absolute())
             self.assertTrue((destination / "summary.json").is_file())

@@ -33,13 +33,15 @@ def _path_list(value: str) -> list[str]:
     return [item for item in str(value or "").split(";") if item]
 
 
-def _model_state_dir(root: Path, model: str) -> Path:
-    """Return a stable model/state directory for delivery artifacts."""
-    if model.endswith("_apo"):
-        return root / model[:-4] / "apo"
-    if model.endswith("_holo"):
-        return root / model[:-5] / "holo"
-    return root / model / "single"
+def _delivery_path(root: Path, design: str, model: str, name: str) -> Path:
+    """Return a flat delivery path that keeps design and model in the filename.
+
+    ``structures/`` and ``confidences/`` stay flat as the delivery contract
+    documents them; the model (and its apo/holo state, when it carries one)
+    stays visible in the file name so two models cannot collide.
+    """
+
+    return root / f"{design}_{model}{name}"
 
 
 def _canonical_delivery_summary(run: Path, destination: Path) -> None:
@@ -57,21 +59,21 @@ def _canonical_delivery_summary(run: Path, destination: Path) -> None:
             if not structure.is_absolute():
                 structure = (run / structure).resolve()
             if structure.is_file():
-                target = _model_state_dir(destination / "structures", model) / f"{design}{structure.suffix or '.cif'}"
+                target = _delivery_path(destination / "structures", design, model, structure.suffix or '.cif')
                 row["structure_path"] = str(target.relative_to(destination)) if target.is_file() else ""
             else:
                 row["structure_path"] = ""
             full_json = Path(row.get("full_data_path", ""))
             if not full_json.is_absolute():
                 full_json = (run / full_json).resolve()
-            json_target = _model_state_dir(destination / "confidences", model) / f"{design}_full_data.json"
+            json_target = _delivery_path(destination / "confidences", design, model, "_full_data.json")
             row["full_data_path"] = str(json_target.relative_to(destination)) if full_json.is_file() and json_target.is_file() else ""
             npz_targets: list[str] = []
             for item in _path_list(row.get("full_data_npz_path", "")):
                 path = Path(item)
                 if not path.is_absolute():
                     path = (run / path).resolve()
-                target = _model_state_dir(destination / "confidences", model) / f"{design}_{path.name}"
+                target = _delivery_path(destination / "confidences", design, model, f"_{path.name}")
                 if path.is_file() and target.is_file():
                     npz_targets.append(str(target.relative_to(destination)))
             row["full_data_npz_path"] = ";".join(npz_targets)
@@ -235,7 +237,7 @@ def compact(run: Path, destination: Path, *, archive: bool = False, delivery_onl
                 if not source:
                     continue
                 suffix = Path(source).suffix or ".cif"
-                target = _model_state_dir(structures, model) / f"{design_id}{suffix}"
+                target = _delivery_path(structures, design_id, model, suffix)
                 if _copy(source, target):
                     copied_structures += 1
                     row[field] = str(target.relative_to(destination))
@@ -245,7 +247,7 @@ def compact(run: Path, destination: Path, *, archive: bool = False, delivery_onl
                 if not field.endswith("_full_data_json"):
                     continue
                 model = field[: -len("_full_data_json")]
-                target = _model_state_dir(confidences, model) / f"{design_id}_full_data.json"
+                target = _delivery_path(confidences, design_id, model, "_full_data.json")
                 if source and _copy(source, target):
                     copied_data += 1
                     row[field] = str(target.relative_to(destination))
@@ -261,7 +263,7 @@ def compact(run: Path, destination: Path, *, archive: bool = False, delivery_onl
                     exact = esmfold_dir / f"{design_id}_confidence.json"
                     paths = [exact] if exact.is_file() else candidates[:1]
                     for path in paths:
-                        target = _model_state_dir(confidences, model) / f"{design_id}_{path.name}"
+                        target = _delivery_path(confidences, design_id, model, f"_{path.name}")
                         if _copy(path.as_posix(), target):
                             copied_data += 1
             # The parser has already selected the top-ranked Boltz model and
@@ -273,7 +275,7 @@ def compact(run: Path, destination: Path, *, archive: bool = False, delivery_onl
                 model = field[: -len("_full_data_npz")]
                 for source in _path_list(value):
                     path = Path(source)
-                    target = _model_state_dir(confidences, model) / f"{design_id}_{path.name}"
+                    target = _delivery_path(confidences, design_id, model, f"_{path.name}")
                     if _copy(path.as_posix(), target):
                         copied_data += 1
             summary_rows.append(row)

@@ -17,8 +17,10 @@ from common.model_parsers import parse_esmfold  # noqa: E402
 class Level1ModeTests(unittest.TestCase):
     def test_native_esmfold_cli(self) -> None:
         command = _default_command({}, "esmfold", {})
-        self.assertEqual(command, ["/xcfhome/yzmeng/miniconda3/envs/zb/bin/esm-fold",
-                                   "-i", "{esm_input}", "-o", "{esm_outdir}"])
+        # The default binary is machine specific; only the argument shape is
+        # part of the contract this test owns.
+        self.assertTrue(command[0].endswith("esm-fold"), command)
+        self.assertEqual(command[1:], ["-i", "{esm_input}", "-o", "{esm_outdir}"])
         command = _default_command({"esmfold_bin": "/custom/esm-fold", "esmfold_num_recycles": 0,
                                     "esmfold_chunk_size": 64, "esmfold_cpu_offload": True}, "esmfold", {})
         self.assertEqual(command, ["/custom/esm-fold", "-i", "{esm_input}", "-o", "{esm_outdir}",
